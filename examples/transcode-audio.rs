@@ -1,5 +1,4 @@
-extern crate ffmpeg_next as ffmpeg;
-
+use ffav as ffmpeg;
 use std::env;
 use std::path::Path;
 

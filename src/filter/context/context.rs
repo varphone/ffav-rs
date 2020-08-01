@@ -1,9 +1,8 @@
-use std::marker::PhantomData;
-
 use super::{Sink, Source};
-use ffi::*;
+use crate::ffi::*;
+use crate::{format, option, ChannelLayout};
 use libc::c_void;
-use {format, option, ChannelLayout};
+use std::marker::PhantomData;
 
 pub struct Context<'a> {
     ptr: *mut AVFilterContext,

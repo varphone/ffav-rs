@@ -1,11 +1,10 @@
+use crate::ffi::*;
+use crate::format;
+use crate::Error;
+use libc::{c_int, size_t};
 use std::marker::PhantomData;
 use std::mem;
 use std::slice;
-
-use ffi::*;
-use format;
-use libc::{c_int, size_t};
-use Error;
 
 pub struct Picture<'a> {
     ptr: *mut AVPicture,

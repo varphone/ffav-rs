@@ -1,13 +1,11 @@
-use std::ops::{Deref, DerefMut};
-
-use ffi::*;
-use libc::c_int;
-
 use super::Opened;
-use codec::Context;
-use frame;
-use util::format;
-use {packet, AudioService, ChannelLayout, Error};
+use crate::codec::Context;
+use crate::ffi::*;
+use crate::frame;
+use crate::util::format;
+use crate::{packet, AudioService, ChannelLayout, Error};
+use libc::c_int;
+use std::ops::{Deref, DerefMut};
 
 pub struct Audio(pub Opened);
 

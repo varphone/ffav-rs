@@ -1,9 +1,8 @@
+use crate::ffi::*;
+use libc::c_int;
 use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, Div, Mul, Sub};
-
-use ffi::*;
-use libc::c_int;
 
 #[derive(Copy, Clone)]
 pub struct Rational(pub i32, pub i32);

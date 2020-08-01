@@ -1,3 +1,7 @@
+use crate::ffi::*;
+use std::ffi::CStr;
+use std::str::from_utf8_unchecked;
+
 pub mod flag;
 pub use self::flag::Flags;
 
@@ -17,11 +21,6 @@ pub mod context;
 pub use self::context::Context;
 
 mod extensions;
-
-use std::ffi::CStr;
-use std::str::from_utf8_unchecked;
-
-use ffi::*;
 
 pub fn version() -> u32 {
     unsafe { swresample_version() }

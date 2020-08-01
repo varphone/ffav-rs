@@ -1,12 +1,11 @@
-pub mod extensions;
-pub mod input;
-pub mod output;
-
+use crate::ffi::*;
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::str::from_utf8_unchecked;
 
-use ffi::*;
+pub mod extensions;
+pub mod input;
+pub mod output;
 
 pub struct Info<'a> {
     ptr: *mut AVDeviceInfo,

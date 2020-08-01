@@ -3,16 +3,11 @@
 #![allow(clippy::module_inception)]
 #![allow(clippy::too_many_arguments)]
 
-#[macro_use]
-extern crate bitflags;
-pub extern crate ffmpeg_sys_next as sys;
 #[cfg(feature = "image")]
-extern crate image;
-extern crate libc;
+use image;
 
-pub use sys as ffi;
+pub use ffav_sys as ffi;
 
-#[macro_use]
 pub mod util;
 pub use util::channel_layout::{self, ChannelLayout};
 pub use util::chroma;

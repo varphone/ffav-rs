@@ -1,13 +1,11 @@
-use std::ops::{Deref, DerefMut};
-use std::ptr;
-
-use ffi::*;
-use libc::{c_float, c_int};
-
 use super::Encoder as Super;
 use super::{Comparison, Decision, MotionEstimation, Prediction};
-use codec::{traits, Context};
-use {color, format, frame, packet, Dictionary, Error, Rational};
+use crate::codec::{traits, Context};
+use crate::ffi::*;
+use crate::{color, format, frame, packet, Dictionary, Error, Rational};
+use libc::{c_float, c_int};
+use std::ops::{Deref, DerefMut};
+use std::ptr;
 
 pub struct Video(pub Super);
 

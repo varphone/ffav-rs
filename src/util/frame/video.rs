@@ -1,15 +1,14 @@
+use super::Frame;
+use crate::color;
+use crate::ffi::*;
+use crate::picture;
+use crate::util::chroma;
+use crate::util::format;
+use crate::Rational;
+use libc::c_int;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::slice;
-
-use super::Frame;
-use color;
-use ffi::*;
-use libc::c_int;
-use picture;
-use util::chroma;
-use util::format;
-use Rational;
 
 #[derive(PartialEq, Eq)]
 pub struct Video(Frame);

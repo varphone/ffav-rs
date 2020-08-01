@@ -1,10 +1,9 @@
+use super::Stream;
+use crate::ffi::*;
+use crate::format::context::common::Context;
+use crate::{codec, Dictionary, Rational};
 use std::mem;
 use std::ops::Deref;
-
-use super::Stream;
-use ffi::*;
-use format::context::common::Context;
-use {codec, Dictionary, Rational};
 
 pub struct StreamMut<'a> {
     context: &'a mut Context,

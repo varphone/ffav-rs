@@ -1,9 +1,8 @@
+use super::Packet;
+use crate::ffi::AVPacketSideDataType::*;
+use crate::ffi::*;
 use std::marker::PhantomData;
 use std::slice;
-
-use super::Packet;
-use ffi::AVPacketSideDataType::*;
-use ffi::*;
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Type {

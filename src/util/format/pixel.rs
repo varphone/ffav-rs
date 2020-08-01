@@ -1,10 +1,9 @@
+use crate::ffi::AVPixelFormat::*;
+use crate::ffi::*;
 use std::error;
 use std::ffi::{CStr, CString, NulError};
 use std::fmt;
 use std::str::{from_utf8_unchecked, FromStr};
-
-use ffi::AVPixelFormat::*;
-use ffi::*;
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Pixel {

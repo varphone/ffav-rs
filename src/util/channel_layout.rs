@@ -1,4 +1,5 @@
-use ffi::*;
+use crate::ffi::*;
+use bitflags::bitflags;
 use libc::c_ulonglong;
 
 bitflags! {

@@ -1,5 +1,5 @@
-use ffi::*;
-use sys::SwrEngine::*;
+use crate::ffi::SwrEngine::*;
+use crate::ffi::*;
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub enum Engine {

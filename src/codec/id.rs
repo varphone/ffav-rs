@@ -1,9 +1,8 @@
+use crate::ffi::AVCodecID::*;
+use crate::ffi::*;
+use crate::util::media;
 use std::ffi::CStr;
 use std::str::from_utf8_unchecked;
-
-use ffi::AVCodecID::*;
-use ffi::*;
-use util::media;
 
 #[allow(non_camel_case_types)]
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]

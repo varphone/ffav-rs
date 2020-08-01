@@ -1,10 +1,9 @@
+use super::{Flags, Type};
+use crate::ffi::*;
+use crate::{format, Picture};
 use std::ffi::CStr;
 use std::marker::PhantomData;
 use std::str::from_utf8_unchecked;
-
-use super::{Flags, Type};
-use ffi::*;
-use {format, Picture};
 
 pub enum Rect<'a> {
     None(*const AVSubtitleRect),

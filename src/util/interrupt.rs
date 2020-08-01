@@ -1,8 +1,7 @@
+use crate::ffi::*;
+use libc::{c_int, c_void};
 use std::panic;
 use std::process;
-
-use ffi::*;
-use libc::{c_int, c_void};
 
 pub struct Interrupt {
     pub interrupt: AVIOInterruptCB,

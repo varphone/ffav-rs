@@ -1,10 +1,9 @@
-use std::ptr;
-
 use super::Flags;
-use ffi::*;
+use crate::ffi::*;
+use crate::util::format;
+use crate::{frame, Error};
 use libc::c_int;
-use util::format;
-use {frame, Error};
+use std::ptr;
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
 pub struct Definition {

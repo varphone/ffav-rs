@@ -1,7 +1,6 @@
+use crate::ffi::*;
 use std::ffi::CStr;
 use std::str::from_utf8_unchecked;
-
-use ffi::*;
 
 pub struct Input {
     ptr: *mut AVInputFormat,

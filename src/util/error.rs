@@ -1,11 +1,10 @@
+use crate::ffi::*;
+use libc::{c_char, c_int};
 use std::error;
 use std::ffi::CStr;
 use std::fmt;
 use std::io;
 use std::str::from_utf8_unchecked;
-
-use ffi::*;
-use libc::{c_char, c_int};
 
 #[derive(Copy, Clone)]
 pub enum Error {

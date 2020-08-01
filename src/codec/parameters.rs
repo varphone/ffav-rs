@@ -1,8 +1,7 @@
-use std::rc::Rc;
-
 use super::{Context, Id};
-use ffi::*;
-use media;
+use crate::ffi::*;
+use crate::media;
+use std::rc::Rc;
 
 pub struct Parameters {
     ptr: *mut AVCodecParameters,

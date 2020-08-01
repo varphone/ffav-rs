@@ -1,13 +1,12 @@
-use std::ptr;
-use std::rc::Rc;
-
 use super::decoder::Decoder;
 use super::encoder::Encoder;
 use super::{threading, Compliance, Debug, Flags, Id, Parameters};
-use ffi::*;
+use crate::ffi::*;
+use crate::media;
+use crate::{Codec, Error};
 use libc::c_int;
-use media;
-use {Codec, Error};
+use std::ptr;
+use std::rc::Rc;
 
 pub struct Context {
     ptr: *mut AVCodecContext,

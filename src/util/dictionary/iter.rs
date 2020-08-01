@@ -1,9 +1,8 @@
+use crate::ffi::*;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;
 use std::ptr;
 use std::str::from_utf8_unchecked;
-
-use ffi::*;
 
 pub struct Iter<'a> {
     ptr: *const AVDictionary,

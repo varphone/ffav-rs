@@ -1,10 +1,9 @@
+use super::{Audio, Check, Conceal, Opened, Subtitle, Video};
+use crate::codec::{traits, Context};
+use crate::ffi::*;
+use crate::{Dictionary, Discard, Error, Rational};
 use std::ops::{Deref, DerefMut};
 use std::ptr;
-
-use super::{Audio, Check, Conceal, Opened, Subtitle, Video};
-use codec::{traits, Context};
-use ffi::*;
-use {Dictionary, Discard, Error, Rational};
 
 pub struct Decoder(pub Context);
 

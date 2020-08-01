@@ -1,6 +1,13 @@
-pub use util::format::{pixel, Pixel};
-pub use util::format::{sample, Sample};
-use util::interrupt;
+use crate::ffi::*;
+use crate::{Dictionary, Error, Format};
+use std::ffi::{CStr, CString};
+use std::path::Path;
+use std::ptr;
+use std::str::from_utf8_unchecked;
+
+pub use crate::util::format::{pixel, Pixel};
+pub use crate::util::format::{sample, Sample};
+use crate::util::interrupt;
 
 pub mod stream;
 
@@ -14,14 +21,6 @@ pub use self::format::{flag, Flags};
 pub use self::format::{list, Input, Output};
 
 pub mod network;
-
-use std::ffi::{CStr, CString};
-use std::path::Path;
-use std::ptr;
-use std::str::from_utf8_unchecked;
-
-use ffi::*;
-use {Dictionary, Error, Format};
 
 pub fn register_all() {
     unsafe {
