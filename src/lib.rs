@@ -65,6 +65,8 @@ pub use filter::Filter;
 
 pub mod software;
 
+pub mod easy;
+
 fn init_error() {
     util::error::register_all();
 }
