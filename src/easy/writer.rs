@@ -201,13 +201,17 @@ mod tests {
     fn test_simple_writer() {
         let a_desc = AudioDesc::new();
         let v_desc = VideoDesc::with_h264(352, 288, 4000, 1000000);
-        let example_bytes = include_bytes!("../../examples/example.264.framed");
+        let example_bytes = include_bytes!("../../examples/envivio-352x288.264.framed");
         for _ in 0..100 {
             let mut mp4_writer =
-                SimpleWriter::new("/tmp/example.264.mp4", &[&a_desc, &v_desc], None).unwrap();
-            let mut ts_writer =
-                SimpleWriter::new("/tmp/example.264.ts", &[&a_desc, &v_desc], Some("mpegts"))
+                SimpleWriter::new("/tmp/envivio-352x288.264.mp4", &[&a_desc, &v_desc], None)
                     .unwrap();
+            let mut ts_writer = SimpleWriter::new(
+                "/tmp/envivio-352x288.264.ts",
+                &[&a_desc, &v_desc],
+                Some("mpegts"),
+            )
+            .unwrap();
             let mut offset: usize = 0;
             let mut pts = 0;
             while offset + 4 < example_bytes.len() {
