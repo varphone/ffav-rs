@@ -80,6 +80,18 @@ impl VideoDesc {
             pix_fmt: AV_PIX_FMT_YUV420P,
         }
     }
+
+    pub fn with_h265(width: i32, height: i32, bit_rate: i64, time_unit: i32) -> Self {
+        Self {
+            codec_id: AV_CODEC_ID_HEVC,
+            width,
+            height,
+            bit_rate,
+            time_base: AVRational::with_normalize(time_unit),
+            gop_size: 12,
+            pix_fmt: AV_PIX_FMT_YUV420P,
+        }
+    }
 }
 
 /// Stream Information
