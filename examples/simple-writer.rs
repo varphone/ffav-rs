@@ -1,12 +1,28 @@
 use ffav::easy::{AudioDesc, SimpleWriter, VideoDesc};
 use std::convert::TryInto;
-use std::time::{Duration, Instant};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let early_exit = Arc::new(AtomicBool::new(false));
+    let early_exit_cloned = Arc::clone(&early_exit);
+    let early_exit_thread = std::thread::spawn(move || {
+        let mut buffer = String::new();
+        std::io::stdin().read_line(&mut buffer).unwrap();
+        early_exit_cloned.store(true, Ordering::SeqCst);
+    });
+
     let a_desc = AudioDesc::new();
     let v_desc = VideoDesc::with_h264(352, 288, 4000, 1000000);
     let example_bytes = include_bytes!("envivio-352x288.264.framed");
     for n in 0..100000 {
+        if early_exit.load(Ordering::SeqCst) {
+            break;
+        }
+
         let start = Instant::now();
         let mut mp4_writer =
             SimpleWriter::new("/tmp/envivio-352x288.264.mp4", &[&a_desc, &v_desc], None)?;
@@ -35,6 +51,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             example_bytes.len()
         );
     }
+
+    early_exit_thread.join().unwrap();
 
     Ok(())
 }
