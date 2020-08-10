@@ -184,12 +184,14 @@ impl SimpleWriter {
     /// * `bytes` - Stream byte data.
     /// * `pts` - Timestamp of the frame.
     /// * `duration` - Duration of the frame.
+    /// * `is_key_frame` - True if is key frame.
     /// * `stream_index` - Index of the stream.
     pub fn write_bytes(
         &mut self,
         bytes: &[u8],
         pts: i64,
         duration: i64,
+        is_key_frame: bool,
         stream_index: usize,
     ) -> AVResult<()> {
         if !self.header_writed {
@@ -212,7 +214,7 @@ impl SimpleWriter {
             pkt.data = bytes.as_ptr() as *mut u8;
             pkt.size = bytes.len().try_into()?;
             pkt.stream_index = stream_index.try_into()?;
-            pkt.flags = 0;
+            pkt.flags = if is_key_frame { AV_PKT_FLAG_KEY } else { 0 };
             pkt.duration = av_rescale_q(duration, in_time_base, out_time_base);
             pkt.pos = -1;
             self.ctx.write_frame_interleaved(&mut pkt)
