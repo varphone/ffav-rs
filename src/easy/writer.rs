@@ -222,6 +222,47 @@ impl SimpleWriter {
     }
 }
 
+/// Options Builder for the SimpleWriter.
+#[derive(Debug, Default)]
+pub struct OpenOptions<'a, 'b, 'c> {
+    medias: Vec<&'a dyn MediaDesc>,
+    format: Option<&'b str>,
+    format_options: Option<&'c str>,
+}
+
+impl<'a, 'b, 'c> OpenOptions<'a, 'b, 'c> {
+    /// Create an new Options Builder for the SimpleWriter.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Add a media description to the output format.
+    pub fn media(&mut self, media: &'a dyn MediaDesc) -> &mut Self {
+        self.medias.push(media);
+        self
+    }
+
+    /// Specified the muxing format of the output format.
+    pub fn format(&mut self, format: &'b str) -> &mut Self {
+        self.format = Some(format);
+        self
+    }
+
+    /// Specified the muxing format options of the output format.
+    pub fn format_options(&mut self, format_options: &'c str) -> &mut Self {
+        self.format_options = Some(format_options);
+        self
+    }
+
+    /// Open the output file and returns the SimpleWriter.
+    pub fn open<P>(&self, path: P) -> AVResult<SimpleWriter>
+    where
+        P: AsRef<Path> + Sized,
+    {
+        SimpleWriter::new(path, &self.medias, self.format, self.format_options)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
