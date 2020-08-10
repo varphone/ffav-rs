@@ -4,6 +4,82 @@ use std::ffi::CString;
 use std::ops::{Deref, DerefMut};
 use std::path::Path;
 
+/// Wrap an owned AVDictionary pointer.
+#[derive(Debug)]
+pub struct AVDictionaryOwned {
+    ptr: *mut AVDictionary,
+}
+
+impl Default for AVDictionaryOwned {
+    fn default() -> Self {
+        Self {
+            ptr: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl Drop for AVDictionaryOwned {
+    fn drop(&mut self) {
+        if !self.ptr.is_null() {
+            unsafe {
+                av_dict_free(&mut self.ptr);
+            }
+        }
+    }
+}
+
+impl Deref for AVDictionaryOwned {
+    type Target = AVDictionary;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl DerefMut for AVDictionaryOwned {
+    fn deref_mut(&mut self) -> &mut AVDictionary {
+        unsafe { &mut *self.ptr }
+    }
+}
+
+impl AVDictionaryOwned {
+    /// Create an an owned AVDictionary from string.
+    ///
+    /// The format of the string like: "key1=value1:key2=value2"
+    pub fn from_str(options: &str) -> AVResult<Self> {
+        unsafe {
+            let mut ptr: *mut AVDictionary = std::ptr::null_mut();
+            let options = CString::new(options).unwrap();
+            let kv_sep = CString::new("=").unwrap();
+            let pair_sep = CString::new(":").unwrap();
+            let err = av_dict_parse_string(
+                &mut ptr,
+                options.as_ptr(),
+                kv_sep.as_ptr(),
+                pair_sep.as_ptr(),
+                0,
+            );
+            if err < 0 {
+                Err(av_err2str(err).into())
+            } else {
+                Ok(Self { ptr })
+            }
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const AVDictionary {
+        self.ptr as *const AVDictionary
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut AVDictionary {
+        self.ptr
+    }
+
+    pub fn as_mut_ptr_ref(&mut self) -> &mut *mut AVDictionary {
+        &mut self.ptr
+    }
+}
+
 /// Format context I/O mode.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd)]
 pub enum AVFormatContextMode {
