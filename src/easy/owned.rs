@@ -190,9 +190,10 @@ impl AVFormatContextOwned {
     }
 
     /// Allocate the stream private data and write the stream header to an output media file.
-    pub fn write_header(&mut self) -> AVResult<()> {
+    pub fn write_header(&mut self, options: Option<&str>) -> AVResult<()> {
         unsafe {
-            let err = avformat_write_header(self.ptr, std::ptr::null_mut());
+            let mut opt = AVDictionaryOwned::from_str(options.unwrap_or("")).unwrap();
+            let err = avformat_write_header(self.ptr, opt.as_mut_ptr_ref());
             if err < 0 {
                 Err(av_err2str(err).into())
             } else {
