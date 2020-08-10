@@ -112,6 +112,7 @@ pub struct Stream {
 #[derive(Debug)]
 pub struct SimpleWriter {
     ctx: AVFormatContextOwned,
+    format_options: String,
     streams: Vec<Stream>,
     header_writed: bool,
     trailer_writed: bool,
@@ -132,7 +133,13 @@ impl SimpleWriter {
     /// * `path` - Path of the output file.
     /// * `descs` - Media description of input streams.
     /// * `format` - The format to muxing，like: mp4, mpegts.
-    pub fn new<P>(path: P, descs: &[&dyn MediaDesc], format: Option<&str>) -> AVResult<Self>
+    /// * `format_options` - The options for muxing format，like: movfragement.
+    pub fn new<P>(
+        path: P,
+        descs: &[&dyn MediaDesc],
+        format: Option<&str>,
+        format_options: Option<&str>,
+    ) -> AVResult<Self>
     where
         P: AsRef<Path> + Sized,
     {
@@ -165,6 +172,7 @@ impl SimpleWriter {
         }
         Ok(Self {
             ctx,
+            format_options: format_options.unwrap_or("").to_owned(),
             streams,
             header_writed: false,
             trailer_writed: false,
@@ -185,7 +193,7 @@ impl SimpleWriter {
         stream_index: usize,
     ) -> AVResult<()> {
         if !self.header_writed {
-            self.ctx.write_header()?;
+            self.ctx.write_header(Some(&self.format_options))?;
             self.header_writed = true;
         }
         unsafe {
