@@ -273,13 +273,18 @@ mod tests {
         let v_desc = VideoDesc::with_h264(352, 288, 4000, 1000000);
         let example_bytes = include_bytes!("../../examples/envivio-352x288.264.framed");
         for _ in 0..100 {
-            let mut mp4_writer =
-                SimpleWriter::new("/tmp/envivio-352x288.264.mp4", &[&a_desc, &v_desc], None)
-                    .unwrap();
+            let mut mp4_writer = SimpleWriter::new(
+                "/tmp/envivio-352x288.264.mp4",
+                &[&a_desc, &v_desc],
+                None,
+                Some("movflags=frag_keyframe"),
+            )
+            .unwrap();
             let mut ts_writer = SimpleWriter::new(
                 "/tmp/envivio-352x288.264.ts",
                 &[&a_desc, &v_desc],
                 Some("mpegts"),
+                Some("mpegts_copyts=1"),
             )
             .unwrap();
             let mut offset: usize = 0;
@@ -290,8 +295,12 @@ mod tests {
                 offset += 4;
                 let frame_bytes = &example_bytes[offset..offset + frame_size];
                 offset += frame_size;
-                mp4_writer.write_bytes(frame_bytes, pts, 40000, 0).unwrap();
-                ts_writer.write_bytes(frame_bytes, pts, 40000, 0).unwrap();
+                mp4_writer
+                    .write_bytes(frame_bytes, pts, 40000, false, 0)
+                    .unwrap();
+                ts_writer
+                    .write_bytes(frame_bytes, pts, 40000, false, 0)
+                    .unwrap();
                 pts += 40000;
             }
         }
