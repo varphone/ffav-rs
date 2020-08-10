@@ -1,6 +1,7 @@
 use super::{owned::*, AVResult};
 use crate::ffi::{AVCodecID::*, AVFieldOrder::*, AVMediaType::*, AVPixelFormat::*, *};
 use std::convert::TryInto;
+use std::fmt::Debug;
 use std::path::Path;
 
 /// Trait for Media Description.
@@ -18,6 +19,12 @@ pub trait MediaDesc {
     /// Cast to VideoDesc reference.
     fn as_video_desc(&self) -> Option<&VideoDesc> {
         None
+    }
+}
+
+impl Debug for &dyn MediaDesc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MediaDesc {{ codec_id: {:?} }}", self.codec_id())
     }
 }
 
