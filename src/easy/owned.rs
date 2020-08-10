@@ -1,7 +1,9 @@
 use super::AVResult;
 use crate::ffi::*;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
+use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
+use std::os::raw::c_char;
 use std::path::Path;
 
 /// Wrap an owned AVDictionary pointer.
@@ -279,5 +281,48 @@ impl AVStreamOwned {
 
     pub fn codecpar_mut(&mut self) -> &mut AVCodecParameters {
         unsafe { &mut *self.codecpar }
+    }
+}
+
+/// Representation of a managed C string.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AVBoxedCStr<'a> {
+    inner: &'a CStr,
+}
+
+impl<'a> Debug for AVBoxedCStr<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.inner)
+    }
+}
+
+impl<'a> Drop for AVBoxedCStr<'a> {
+    fn drop(&mut self) {
+        unsafe {
+            let mut ptr = self.inner.as_ptr() as *mut core::ffi::c_void;
+            av_freep(std::mem::transmute::<
+                &mut *mut core::ffi::c_void,
+                *mut core::ffi::c_void,
+            >(&mut ptr));
+        }
+    }
+}
+
+impl<'a> Deref for AVBoxedCStr<'a> {
+    type Target = CStr;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner
+    }
+}
+
+impl<'a> AVBoxedCStr<'a> {
+    /// Wraps a raw C string with a safe C string wrapper.
+    ///
+    /// The ownership of the ptr is transfered to the AVBoxedCStr.
+    pub unsafe fn from_ptr(ptr: *const c_char) -> Self {
+        Self {
+            inner: CStr::from_ptr(ptr),
+        }
     }
 }
