@@ -1,4 +1,4 @@
-use ffav::easy::{AudioDesc, SimpleWriter, VideoDesc};
+use ffav::easy::{AudioDesc, OpenOptions, VideoDesc};
 use std::convert::TryInto;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -24,13 +24,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let start = Instant::now();
-        let mut mp4_writer =
-            SimpleWriter::new("/tmp/envivio-352x288.264.mp4", &[&a_desc, &v_desc], None)?;
-        let mut ts_writer = SimpleWriter::new(
-            "/tmp/envivio-352x288.264.ts",
-            &[&a_desc, &v_desc],
-            Some("mpegts"),
-        )?;
+        let mut mp4_writer = OpenOptions::new()
+            .media(&a_desc)
+            .media(&v_desc)
+            .format_options("movflags=frag_keyframe")
+            .open("/tmp/envivio-352x288.264.mp4")?;
+
+        let mut ts_writer = OpenOptions::new()
+            .media(&a_desc)
+            .media(&v_desc)
+            .format("mpegts")
+            .format_options("mpegts_copyts=1")
+            .open("/tmp/envivio-352x288.264.ts")?;
+
         let mut offset: usize = 0;
         let mut pts = 0;
         while offset + 4 < example_bytes.len() {
@@ -39,8 +45,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             offset += 4;
             let frame_bytes = &example_bytes[offset..offset + frame_size];
             offset += frame_size;
-            mp4_writer.write_bytes(frame_bytes, pts, 40000, 0)?;
-            ts_writer.write_bytes(frame_bytes, pts, 40000, 0)?;
+            mp4_writer.write_bytes(frame_bytes, pts, 40000, false, 0)?;
+            ts_writer.write_bytes(frame_bytes, pts, 40000, false, 0)?;
             pts += 40000;
         }
         let duration = start.elapsed();
