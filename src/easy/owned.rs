@@ -566,16 +566,6 @@ impl AVStreamOwned {
     }
 }
 
-impl AVStreamOwned {
-    pub fn codecpar(&self) -> &AVCodecParameters {
-        unsafe { &*self.codecpar }
-    }
-
-    pub fn codecpar_mut(&mut self) -> &mut AVCodecParameters {
-        unsafe { &mut *self.codecpar }
-    }
-}
-
 /// Representation of a managed C string.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AVBoxedCStr<'a> {
