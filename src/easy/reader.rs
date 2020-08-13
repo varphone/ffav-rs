@@ -1,4 +1,4 @@
-﻿use super::{owned::*, AVResult};
+use super::{owned::*, AVResult};
 use crate::ffi::{AVCodecID::*, AVFieldOrder::*, AVMediaType::*, AVPixelFormat::*, *};
 use std::convert::TryInto;
 use std::fmt::Debug;
@@ -30,8 +30,9 @@ pub struct SimpleReader {
 }
 
 impl SimpleReader {
-    const AV_CODEC_TAG_AVC1: u32 = MKTAG!('a','v','c','1') as u32;
-    const AV_CODEC_TAG_HEV1: u32 = MKTAG!('h','e','v','1') as u32;
+    const AV_CODEC_TAG_AVC1: u32 = MKTAG!(b'a', b'v', b'c', b'1') as u32;
+    const AV_CODEC_TAG_HEV1: u32 = MKTAG!(b'h', b'e', b'v', b'1') as u32;
+    const AV_CODEC_TAG_HVC1: u32 = MKTAG!(b'h', b'v', b'c', b'1') as u32;
 
     /// Create a new simple reader.
     /// # Arguments
@@ -49,11 +50,10 @@ impl SimpleReader {
         for stream in ctx.streams() {
             if let Some(codec) = stream.codec() {
                 let filter_name = match codec.codec_tag {
-                    Self::AV_CODEC_TAG_AVC1 => { "h264_mp4toannexb"} ,
-                    Self::AV_CODEC_TAG_HEV1 => { "hevc_mp4toannexb" },
-                    _ => { "null" },
+                    Self::AV_CODEC_TAG_AVC1 => "h264_mp4toannexb",
+                    Self::AV_CODEC_TAG_HEV1 | Self::AV_CODEC_TAG_HVC1 => "hevc_mp4toannexb",
+                    _ => "null",
                 };
-                println!("codec_tag={:08X?}, filter_name={:?}",codec.codec_tag,  filter_name);
                 let mut bsf = AVBSFContextOwned::new(filter_name)?;
                 bsf.prepare(stream.codecpar())?;
                 bsfs.push(bsf);
