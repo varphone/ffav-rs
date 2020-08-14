@@ -1,11 +1,18 @@
 use super::AVResult;
 use crate::ffi::*;
+use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::os::raw::c_char;
 use std::path::Path;
 use std::str::FromStr;
+
+#[derive(Debug)]
+pub enum AVBSFError {
+    Again,
+    Reason(String),
+}
 
 #[repr(transparent)]
 #[derive(Debug)]
