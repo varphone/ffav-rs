@@ -5,8 +5,10 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::os::raw::c_char;
 use std::path::Path;
+use std::str::FromStr;
 
 /// Wrap an owned AVDictionary pointer.
+#[repr(transparent)]
 #[derive(Debug)]
 pub struct AVDictionaryOwned {
     ptr: *mut AVDictionary,
@@ -44,11 +46,12 @@ impl DerefMut for AVDictionaryOwned {
     }
 }
 
-impl AVDictionaryOwned {
+impl FromStr for AVDictionaryOwned {
+    type Err = Box<dyn Error>;
     /// Create an an owned AVDictionary from string.
     ///
     /// The format of the string like: "key1=value1:key2=value2"
-    pub fn from_str(options: &str) -> AVResult<Self> {
+    fn from_str(options: &str) -> Result<Self, Self::Err> {
         unsafe {
             let mut ptr: *mut AVDictionary = std::ptr::null_mut();
             let options = CString::new(options).unwrap();
@@ -68,7 +71,9 @@ impl AVDictionaryOwned {
             }
         }
     }
+}
 
+impl AVDictionaryOwned {
     pub fn as_ptr(&self) -> *const AVDictionary {
         self.ptr as *const AVDictionary
     }
