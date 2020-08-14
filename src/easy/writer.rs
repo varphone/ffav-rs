@@ -152,16 +152,17 @@ impl SimpleWriter {
                     let desc = desc.as_video_desc().unwrap();
                     let mut st = ctx.new_stream(codec_id)?;
                     // st.time_base = AVRational::new(1, 90000);
-                    let par = st.codecpar_mut();
-                    par.codec_type = AVMEDIA_TYPE_VIDEO;
-                    par.codec_id = codec_id;
-                    par.bit_rate = desc.bit_rate;
-                    par.width = desc.width;
-                    par.height = desc.height;
-                    par.field_order = AV_FIELD_UNKNOWN;
-                    par.sample_aspect_ratio = AVRational::new(0, 1);
-                    par.profile = FF_PROFILE_UNKNOWN;
-                    par.level = FF_LEVEL_UNKNOWN;
+                    if let Some(par) = st.codecpar_mut() {
+                        par.codec_type = AVMEDIA_TYPE_VIDEO;
+                        par.codec_id = codec_id;
+                        par.bit_rate = desc.bit_rate;
+                        par.width = desc.width;
+                        par.height = desc.height;
+                        par.field_order = AV_FIELD_UNKNOWN;
+                        par.sample_aspect_ratio = AVRational::new(0, 1);
+                        par.profile = FF_PROFILE_UNKNOWN;
+                        par.level = FF_LEVEL_UNKNOWN;
+                    }
                     streams.push(Stream {
                         stream: st,
                         in_time_base: desc.time_base,
