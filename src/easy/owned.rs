@@ -362,6 +362,17 @@ impl AVFormatContextOwned {
         }
     }
 
+    /// Return the next frame of a stream.
+    pub fn read_frame(&mut self) -> Option<AVPacketOwned> {
+        let mut pkt = AVPacketOwned::new();
+        let err = unsafe { av_read_frame(self.ptr, &mut *pkt) };
+        if err < 0 {
+            None
+        } else {
+            Some(pkt)
+        }
+    }
+
     /// Allocate the stream private data and write the stream header to an output media file.
     pub fn write_header(&mut self, options: Option<&str>) -> AVResult<()> {
         unsafe {
