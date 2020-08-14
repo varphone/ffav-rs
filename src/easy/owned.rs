@@ -275,6 +275,35 @@ impl AVFormatContextOwned {
         Self { ptr, mode }
     }
 
+    /// Create a new AVFormatContext for input.
+    pub fn with_input<P>(path: P, format_options: Option<&str>) -> AVResult<Self>
+    where
+        P: AsRef<Path>,
+    {
+        unsafe {
+            let path = CString::new(path.as_ref().as_os_str().to_str().unwrap()).unwrap();
+            let mut options = AVDictionaryOwned::from_str(format_options.unwrap_or("")).unwrap();
+            let mut ps = std::ptr::null_mut();
+            let err = avformat_open_input(
+                &mut ps,
+                path.as_ptr(),
+                std::ptr::null_mut(),
+                options.as_mut_ptr_ref(),
+            );
+            if err < 0 {
+                return Err(av_err2str(err).into());
+            }
+            let err = avformat_find_stream_info(ps, std::ptr::null_mut());
+            if err < 0 {
+                return Err(av_err2str(err).into());
+            }
+            Ok(Self {
+                ptr: ps,
+                mode: AVFormatContextMode::Input,
+            })
+        }
+    }
+
     /// Create a new AVFormatContext for output.
     pub fn with_output<P>(
         path: P,
