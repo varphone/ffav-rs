@@ -228,6 +228,118 @@ impl AVFormatContextOwned {
     }
 }
 
+#[repr(transparent)]
+pub struct AVPacketBoxed {
+    ptr: *mut AVPacket,
+}
+
+impl Debug for AVPacketBoxed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe {
+            if f.alternate() {
+                write!(f, "{:#?}", *self.ptr)
+            } else {
+                write!(f, "{:?}", *self.ptr)
+            }
+        }
+    }
+}
+
+impl Drop for AVPacketBoxed {
+    fn drop(&mut self) {
+        println!("Drop for AVPacketBoxed({:p})", self.ptr);
+        unsafe {
+            av_packet_free(&mut self.ptr);
+        }
+    }
+}
+
+impl Deref for AVPacketBoxed {
+    type Target = AVPacket;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl DerefMut for AVPacketBoxed {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { &mut *self.ptr }
+    }
+}
+
+impl AVPacketBoxed {
+    pub fn from_ptr(ptr: *mut AVPacket) -> Self {
+        Self { ptr }
+    }
+
+    pub fn as_ptr(&self) -> *const AVPacket {
+        self.ptr as *const AVPacket
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut AVPacket {
+        self.ptr
+    }
+
+    pub fn as_mut_ptr_ref(&mut self) -> &mut *mut AVPacket {
+        &mut self.ptr
+    }
+}
+
+#[repr(transparent)]
+#[derive(Default)]
+pub struct AVPacketOwned {
+    inner: AVPacket,
+}
+
+impl Debug for AVPacketOwned {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if f.alternate() {
+            write!(f, "{:#?}", self.inner)
+        } else {
+            write!(f, "{:?}", self.inner)
+        }
+    }
+}
+
+impl Drop for AVPacketOwned {
+    fn drop(&mut self) {
+        unsafe {
+            av_packet_unref(&mut self.inner);
+        }
+    }
+}
+
+impl Deref for AVPacketOwned {
+    type Target = AVPacket;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl DerefMut for AVPacketOwned {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl AVPacketOwned {
+    pub fn new() -> Self {
+        Self {
+            inner: Default::default(),
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const AVPacket {
+        &self.inner as *const AVPacket
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut AVPacket {
+        &mut self.inner
+    }
+}
+
 #[derive(Debug)]
 pub struct AVOutputFormatOwned {
     ptr: *mut AVOutputFormat,
