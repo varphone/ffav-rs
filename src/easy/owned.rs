@@ -7,6 +7,138 @@ use std::os::raw::c_char;
 use std::path::Path;
 use std::str::FromStr;
 
+#[repr(transparent)]
+#[derive(Debug)]
+pub struct AVBSFContextOwned {
+    ptr: *mut AVBSFContext,
+}
+
+impl Default for AVBSFContextOwned {
+    fn default() -> Self {
+        unsafe {
+            let mut ptr: *mut AVBSFContext = std::ptr::null_mut();
+            if av_bsf_get_null_filter(&mut ptr) == 0 {
+                av_bsf_init(ptr);
+            }
+            Self { ptr }
+        }
+    }
+}
+
+impl Drop for AVBSFContextOwned {
+    fn drop(&mut self) {
+        if !self.ptr.is_null() {
+            unsafe {
+                av_bsf_free(&mut self.ptr);
+            }
+        }
+    }
+}
+
+impl Deref for AVBSFContextOwned {
+    type Target = AVBSFContext;
+
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl DerefMut for AVBSFContextOwned {
+    fn deref_mut(&mut self) -> &mut AVBSFContext {
+        unsafe { &mut *self.ptr }
+    }
+}
+
+impl AVBSFContextOwned {
+    /// Allocate a context for a given bitstream filter.
+    /// The caller must fill in the context parameters as described in the
+    /// documentation and then call init() before sending any data to the filter.
+    pub fn new(name: &str) -> AVResult<Self> {
+        unsafe {
+            let cname = CString::new(name).unwrap();
+            let filter = av_bsf_get_by_name(cname.as_ptr());
+            if filter.is_null() {
+                Err(format!("Bitstream Filter {:?} does not exists!", name).into())
+            } else {
+                let mut ptr: *mut AVBSFContext = std::ptr::null_mut();
+                let err = av_bsf_alloc(filter, &mut ptr);
+                if err < 0 {
+                    Err(av_err2str(err).into())
+                } else {
+                    Ok(Self { ptr })
+                }
+            }
+        }
+    }
+
+    /// Reset the internal bitstream filter state / flush internal buffers.
+    pub fn flush(&mut self) {
+        unsafe {
+            av_bsf_flush(self.ptr);
+        }
+    }
+
+    /// Prepare the filter for use, after all the parameters and options have been set.
+    pub fn prepare(&mut self, codecpar: Option<&AVCodecParameters>) -> AVResult<()> {
+        unsafe {
+            if let Some(codecpar) = codecpar {
+                avcodec_parameters_copy(self.par_in, codecpar);
+            }
+            let err = av_bsf_init(self.ptr);
+            if err < 0 {
+                Err(av_err2str(err).into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    /// Retrieve a filtered packet.
+    pub fn receive_packet(&mut self) -> Result<AVPacketOwned, AVBSFError> {
+        unsafe {
+            let mut packet = AVPacketOwned::default();
+            let err = av_bsf_receive_packet(self.ptr, packet.as_mut_ptr());
+            if err < 0 {
+                if err == AVERROR(11) {
+                    Err(AVBSFError::Again)
+                } else {
+                    Err(AVBSFError::Reason(av_err2str(err)))
+                }
+            } else {
+                Ok(packet)
+            }
+        }
+    }
+
+    /// Submit a packet for filtering.
+    pub fn send_packet(&mut self, packet: &mut AVPacket) -> Result<(), AVBSFError> {
+        unsafe {
+            let err = av_bsf_send_packet(self.ptr, packet);
+            if err < 0 {
+                if err == AVERROR(11) {
+                    Err(AVBSFError::Again)
+                } else {
+                    Err(AVBSFError::Reason(av_err2str(err)))
+                }
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const AVBSFContext {
+        self.ptr as *const AVBSFContext
+    }
+
+    pub fn as_mut_ptr(&mut self) -> *mut AVBSFContext {
+        self.ptr
+    }
+
+    pub fn as_mut_ptr_ref(&mut self) -> &mut *mut AVBSFContext {
+        &mut self.ptr
+    }
+}
+
 /// Wrap an owned AVDictionary pointer.
 #[repr(transparent)]
 #[derive(Debug)]
