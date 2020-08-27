@@ -1,0 +1,30 @@
+﻿---
+kind: pipeline
+type: exec
+name: default
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: check format and lints
+  environment:
+    FFMPEG_GIT_URL: "https://code.vaxpl.com/git/rdst/FFmpeg.git"
+  commands:
+  - cargo fmt -- --check
+  - cargo clippy --features bundled
+
+- name: build
+  environment:
+    FFMPEG_GIT_URL: "https://code.vaxpl.com/git/rdst/FFmpeg.git"
+  commands:
+  - cargo build --features bundled
+
+- name: test
+  environment:
+    FFMPEG_GIT_URL: "https://code.vaxpl.com/git/rdst/FFmpeg.git"
+  commands:
+  - cargo test --features bundled
+
+...
