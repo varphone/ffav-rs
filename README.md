@@ -2,7 +2,7 @@ ffav-rs
 =======
 
 [![crates.io](https://img.shields.io/crates/v/ffav.svg)](https://crates.io/crates/ffav)
-[![build](https://github.com/varphone/ffav-rs/workflows/build/badge.svg)](https://github.com/varphone/ffav-rs/actions)
+[![Build Status](https://ci.vaxpl.com/api/badges/rdst/ffav-rs/status.svg?ref=refs/heads/{{BRANCH_NAME}})](https://ci.vaxpl.com/rdst/ffav-rs)
 
 This is a fork of the abandoned [ffmpeg-next](https://crates.io/crates/ffmpeg) crate by [zmwangx](https://github.com/zmwangx/rust-ffmpeg).
 
