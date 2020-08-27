@@ -15,8 +15,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         early_exit_cloned.store(true, Ordering::SeqCst);
     });
 
-    let mut reader = SimpleReader::open("/tmp/envivio-352x288.264.mp4", None)?;
-    for frame in reader.frames() {
+    let mut reader = SimpleReader::open("/tmp/envivio-352x288.264.mp4", None, None)?;
+    for (frame, _info) in reader.frames() {
         println!("frame={:#?}", frame);
         let bytes =
             unsafe { std::slice::from_raw_parts(frame.data, frame.size.try_into().unwrap()) };
