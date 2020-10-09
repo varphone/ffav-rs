@@ -120,7 +120,7 @@ pub struct SimpleWriter {
 
 impl Drop for SimpleWriter {
     fn drop(&mut self) {
-        if !self.trailer_writed {
+        if self.header_writed && !self.trailer_writed {
             self.ctx.write_trailer().unwrap();
             self.trailer_writed = true;
         }
