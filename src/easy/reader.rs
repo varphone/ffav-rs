@@ -156,7 +156,7 @@ impl SimpleReader {
 
     /// Returns then stream at index of the file.
     pub fn stream(&self, index: usize) -> Option<&AVStream> {
-        self.streams().get(index).map(|x| *x)
+        self.streams().get(index).copied()
     }
 
     /// Returns a list of all streams in the file.
