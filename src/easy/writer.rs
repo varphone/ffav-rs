@@ -120,10 +120,7 @@ pub struct SimpleWriter {
 
 impl Drop for SimpleWriter {
     fn drop(&mut self) {
-        if self.header_writed && !self.trailer_writed {
-            self.ctx.write_trailer().unwrap();
-            self.trailer_writed = true;
-        }
+        self.close();
     }
 }
 
@@ -219,8 +216,34 @@ impl SimpleWriter {
             pkt.duration = av_rescale_q(duration, in_time_base, out_time_base);
             pkt.pos = -1;
             self.ctx.write_frame_interleaved(&mut pkt)?;
+            self.ctx.flush();
             Ok(())
         }
+    }
+
+    /// Write the trailer to finish the muxing.
+    pub fn write_trailer(&mut self) {
+        if self.header_writed && !self.trailer_writed {
+            self.ctx.write_trailer().unwrap();
+            self.trailer_writed = true;
+            self.flush();
+        }
+    }
+
+    /// Close all resouces accessed by the muxer.
+    pub fn close(&mut self) {
+        self.write_trailer();
+        self.ctx.flush();
+    }
+
+    /// Flush all buffered data to stream destionation.
+    pub fn flush(&mut self) {
+        self.ctx.flush();
+    }
+
+    /// Returns the size of the stream processed.
+    pub fn size(&self) -> u64 {
+        self.ctx.size()
     }
 }
 
