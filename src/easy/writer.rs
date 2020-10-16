@@ -116,8 +116,6 @@ pub struct SimpleWriter {
     streams: Vec<Stream>,
     header_writed: bool,
     trailer_writed: bool,
-    bytes_written: u64,
-    frames_written: u64,
 }
 
 impl Drop for SimpleWriter {
@@ -179,19 +177,7 @@ impl SimpleWriter {
             streams,
             header_writed: false,
             trailer_writed: false,
-            bytes_written: 0,
-            frames_written: 0,
         })
-    }
-
-    /// Returns total bytes wroted to the stream.
-    pub fn bytes_written(&self) -> u64 {
-        self.bytes_written
-    }
-
-    /// Returns total frames wroted to the stream.
-    pub fn frames_written(&self) -> u64 {
-        self.frames_written
     }
 
     /// Write frame bytes to the stream.
@@ -233,8 +219,6 @@ impl SimpleWriter {
             pkt.duration = av_rescale_q(duration, in_time_base, out_time_base);
             pkt.pos = -1;
             self.ctx.write_frame_interleaved(&mut pkt)?;
-            self.bytes_written += bytes.len() as u64;
-            self.frames_written += 1;
             Ok(())
         }
     }
