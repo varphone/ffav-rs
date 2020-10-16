@@ -28,6 +28,52 @@ impl Debug for &dyn MediaDesc {
     }
 }
 
+/// Trait for Writer.
+pub trait Writer {
+    /// Write the header of the format to the stream.
+    fn write_header(&mut self) -> AVResult<()>;
+
+    /// Write frame bytes to the stream.
+    /// # Arguments
+    /// * `bytes` - Stream byte data.
+    /// * `pts` - Timestamp of the frame.
+    /// * `duration` - Duration of the frame.
+    /// * `is_key_frame` - True if is key frame.
+    /// * `stream_index` - Index of the stream.
+    fn write_bytes(
+        &mut self,
+        bytes: &[u8],
+        pts: i64,
+        duration: i64,
+        is_key_frame: bool,
+        stream_index: usize,
+    ) -> AVResult<()>;
+
+    /// Write the trailer of the format to the stream.
+    fn write_trailer(&mut self) -> AVResult<()>;
+
+    /// Close all resouces accessed by the muxer.
+    fn close(&mut self);
+
+    /// Flush all buffered data to stream destionation.
+    fn flush(&mut self);
+
+    /// Returns the size of the stream processed.
+    fn size(&self) -> u64;
+}
+
+impl Debug for &dyn Writer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Writer {{}}")
+    }
+}
+
+impl Debug for Box<dyn Writer> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Writer @ 0x{:p}", self)
+    }
+}
+
 /// Audio Description
 #[derive(Copy, Clone, Debug, Default)]
 pub struct AudioDesc {
@@ -124,6 +170,83 @@ impl Drop for SimpleWriter {
     }
 }
 
+impl Writer for SimpleWriter {
+    /// Write the header of the format to the stream.
+    fn write_header(&mut self) -> AVResult<()> {
+        Ok(())
+    }
+
+    /// Write frame bytes to the stream.
+    /// # Arguments
+    /// * `bytes` - Stream byte data.
+    /// * `pts` - Timestamp of the frame.
+    /// * `duration` - Duration of the frame.
+    /// * `is_key_frame` - True if is key frame.
+    /// * `stream_index` - Index of the stream.
+    fn write_bytes(
+        &mut self,
+        bytes: &[u8],
+        pts: i64,
+        duration: i64,
+        is_key_frame: bool,
+        stream_index: usize,
+    ) -> AVResult<()> {
+        if !self.header_writed {
+            self.ctx.write_header(Some(&self.format_options))?;
+            self.header_writed = true;
+        }
+        unsafe {
+            let stm = self.streams.get(stream_index).unwrap();
+            let in_time_base = stm.in_time_base;
+            let out_time_base = stm.stream.time_base;
+            let mut pkt = AVPacket::default();
+            let pts = av_rescale_q_rnd(
+                pts,
+                in_time_base,
+                out_time_base,
+                AVRounding::new().near_inf().pass_min_max(),
+            );
+            pkt.pts = pts;
+            pkt.dts = pts;
+            pkt.data = bytes.as_ptr() as *mut u8;
+            pkt.size = bytes.len().try_into()?;
+            pkt.stream_index = stream_index.try_into()?;
+            pkt.flags = if is_key_frame { AV_PKT_FLAG_KEY } else { 0 };
+            pkt.duration = av_rescale_q(duration, in_time_base, out_time_base);
+            pkt.pos = -1;
+            self.ctx.write_frame_interleaved(&mut pkt)?;
+            self.ctx.flush();
+            Ok(())
+        }
+    }
+
+    /// Write the trailer to finish the muxing.
+    fn write_trailer(&mut self) -> AVResult<()> {
+        if self.header_writed && !self.trailer_writed {
+            self.ctx.write_trailer()?;
+            self.trailer_writed = true;
+            self.flush();
+        }
+        Ok(())
+    }
+
+    /// Close all resouces accessed by the muxer.
+    fn close(&mut self) {
+        self.write_trailer().unwrap();
+        self.ctx.flush();
+    }
+
+    /// Flush all buffered data to stream destionation.
+    fn flush(&mut self) {
+        self.ctx.flush();
+    }
+
+    /// Returns the size of the stream processed.
+    fn size(&self) -> u64 {
+        self.ctx.size()
+    }
+}
+
 impl SimpleWriter {
     /// Create a new simple writer.
     /// # Arguments
@@ -176,15 +299,20 @@ impl SimpleWriter {
             trailer_writed: false,
         })
     }
+}
 
-    /// Write frame bytes to the stream.
-    /// # Arguments
-    /// * `bytes` - Stream byte data.
-    /// * `pts` - Timestamp of the frame.
-    /// * `duration` - Duration of the frame.
-    /// * `is_key_frame` - True if is key frame.
-    /// * `stream_index` - Index of the stream.
-    pub fn write_bytes(
+/// Split Writer for Muxing Audio and Video.
+#[derive(Debug)]
+pub struct SplitWriter {
+    writer: Option<Box<dyn Writer>>,
+}
+
+impl Writer for SplitWriter {
+    fn write_header(&mut self) -> AVResult<()> {
+        unimplemented!()
+    }
+
+    fn write_bytes(
         &mut self,
         bytes: &[u8],
         pts: i64,
@@ -192,58 +320,31 @@ impl SimpleWriter {
         is_key_frame: bool,
         stream_index: usize,
     ) -> AVResult<()> {
-        if !self.header_writed {
-            self.ctx.write_header(Some(&self.format_options))?;
-            self.header_writed = true;
-        }
-        unsafe {
-            let stm = self.streams.get(stream_index).unwrap();
-            let in_time_base = stm.in_time_base;
-            let out_time_base = stm.stream.time_base;
-            let mut pkt = AVPacket::default();
-            let pts = av_rescale_q_rnd(
-                pts,
-                in_time_base,
-                out_time_base,
-                AVRounding::new().near_inf().pass_min_max(),
-            );
-            pkt.pts = pts;
-            pkt.dts = pts;
-            pkt.data = bytes.as_ptr() as *mut u8;
-            pkt.size = bytes.len().try_into()?;
-            pkt.stream_index = stream_index.try_into()?;
-            pkt.flags = if is_key_frame { AV_PKT_FLAG_KEY } else { 0 };
-            pkt.duration = av_rescale_q(duration, in_time_base, out_time_base);
-            pkt.pos = -1;
-            self.ctx.write_frame_interleaved(&mut pkt)?;
-            self.ctx.flush();
-            Ok(())
-        }
+        unimplemented!()
     }
 
-    /// Write the trailer to finish the muxing.
-    pub fn write_trailer(&mut self) {
-        if self.header_writed && !self.trailer_writed {
-            self.ctx.write_trailer().unwrap();
-            self.trailer_writed = true;
-            self.flush();
-        }
+    fn write_trailer(&mut self) -> AVResult<()> {
+        unimplemented!()
     }
 
-    /// Close all resouces accessed by the muxer.
-    pub fn close(&mut self) {
-        self.write_trailer();
-        self.ctx.flush();
+    fn close(&mut self) {
+        unimplemented!()
     }
 
-    /// Flush all buffered data to stream destionation.
-    pub fn flush(&mut self) {
-        self.ctx.flush();
+    fn flush(&mut self) {
+        unimplemented!()
     }
 
-    /// Returns the size of the stream processed.
-    pub fn size(&self) -> u64 {
-        self.ctx.size()
+    fn size(&self) -> u64 {
+        unimplemented!()
+    }
+}
+
+impl SplitWriter {
+    pub fn new() -> AVResult<Self> {
+        Ok(Self {
+            writer: None,
+        })
     }
 }
 
@@ -280,11 +381,15 @@ impl<'a, 'b, 'c> OpenOptions<'a, 'b, 'c> {
     }
 
     /// Open the output file and returns the SimpleWriter.
-    pub fn open<P>(&self, path: P) -> AVResult<SimpleWriter>
+    pub fn open<P>(&self, path: P) -> AVResult<impl Writer>
     where
         P: AsRef<Path> + Sized,
     {
-        SimpleWriter::new(path, &self.medias, self.format, self.format_options)
+        if true {
+            SimpleWriter::new(path, &self.medias, self.format, self.format_options)
+        } else {
+            SplitWriter::new()
+        }
     }
 }
 

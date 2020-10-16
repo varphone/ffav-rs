@@ -1,4 +1,4 @@
-use ffav::easy::{AudioDesc, OpenOptions, VideoDesc};
+use ffav::easy::{AudioDesc, OpenOptions, VideoDesc, Writer};
 use std::convert::TryInto;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
