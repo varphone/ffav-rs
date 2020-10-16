@@ -1,5 +1,6 @@
 use super::AVResult;
 use crate::ffi::*;
+use std::convert::TryInto;
 use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
@@ -403,6 +404,26 @@ impl AVFormatContextOwned {
             } else {
                 Ok(())
             }
+        }
+    }
+
+    /// Flush all buffered data to stream destionation.
+    pub fn flush(&mut self) {
+        if let AVFormatContextMode::Output = self.mode {
+            if let Some(pb) = self.pb_mut() {
+                unsafe {
+                    avio_flush(pb);
+                }
+            }
+        }
+    }
+
+    /// Returns the size of the stream processed.
+    pub fn size(&self) -> u64 {
+        if let Some(pb) = self.pb_mut() {
+            unsafe { avio_size(pb).try_into().unwrap() }
+        } else {
+            0
         }
     }
 }
