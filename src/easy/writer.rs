@@ -2,7 +2,9 @@ use super::{owned::*, AVResult};
 use crate::ffi::{AVCodecID::*, AVFieldOrder::*, AVMediaType::*, AVPixelFormat::*, *};
 use std::convert::TryInto;
 use std::fmt::Debug;
-use std::path::Path;
+use std::ops::Deref;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// Trait for Media Description.
 pub trait MediaDesc {
@@ -25,6 +27,58 @@ pub trait MediaDesc {
 impl Debug for &dyn MediaDesc {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "MediaDesc {{ codec_id: {:?} }}", self.codec_id())
+    }
+}
+
+impl Debug for Box<dyn MediaDesc> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MediaDesc {{ codec_id: {:?} }}", self.codec_id())
+    }
+}
+
+/// Trait for Writer.
+pub trait Writer {
+    /// Write the header of the format to the stream.
+    fn write_header(&mut self) -> AVResult<()>;
+
+    /// Write frame bytes to the stream.
+    /// # Arguments
+    /// * `bytes` - Stream byte data.
+    /// * `pts` - Timestamp of the frame.
+    /// * `duration` - Duration of the frame.
+    /// * `is_key_frame` - True if is key frame.
+    /// * `stream_index` - Index of the stream.
+    fn write_bytes(
+        &mut self,
+        bytes: &[u8],
+        pts: i64,
+        duration: i64,
+        is_key_frame: bool,
+        stream_index: usize,
+    ) -> AVResult<()>;
+
+    /// Write the trailer of the format to the stream.
+    fn write_trailer(&mut self) -> AVResult<()>;
+
+    /// Close all resouces accessed by the muxer.
+    fn close(&mut self);
+
+    /// Flush all buffered data to stream destionation.
+    fn flush(&mut self);
+
+    /// Returns the size of the stream processed.
+    fn size(&self) -> u64;
+}
+
+impl Debug for &dyn Writer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Writer @ 0x{:p}", self)
+    }
+}
+
+impl Debug for Box<dyn Writer> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Writer @ 0x{:p}", self)
     }
 }
 
@@ -124,6 +178,83 @@ impl Drop for SimpleWriter {
     }
 }
 
+impl Writer for SimpleWriter {
+    /// Write the header of the format to the stream.
+    fn write_header(&mut self) -> AVResult<()> {
+        Ok(())
+    }
+
+    /// Write frame bytes to the stream.
+    /// # Arguments
+    /// * `bytes` - Stream byte data.
+    /// * `pts` - Timestamp of the frame.
+    /// * `duration` - Duration of the frame.
+    /// * `is_key_frame` - True if is key frame.
+    /// * `stream_index` - Index of the stream.
+    fn write_bytes(
+        &mut self,
+        bytes: &[u8],
+        pts: i64,
+        duration: i64,
+        is_key_frame: bool,
+        stream_index: usize,
+    ) -> AVResult<()> {
+        if !self.header_writed {
+            self.ctx.write_header(Some(&self.format_options))?;
+            self.header_writed = true;
+        }
+        unsafe {
+            let stm = self.streams.get(stream_index).unwrap();
+            let in_time_base = stm.in_time_base;
+            let out_time_base = stm.stream.time_base;
+            let mut pkt = AVPacket::default();
+            let pts = av_rescale_q_rnd(
+                pts,
+                in_time_base,
+                out_time_base,
+                AVRounding::new().near_inf().pass_min_max(),
+            );
+            pkt.pts = pts;
+            pkt.dts = pts;
+            pkt.data = bytes.as_ptr() as *mut u8;
+            pkt.size = bytes.len().try_into()?;
+            pkt.stream_index = stream_index.try_into()?;
+            pkt.flags = if is_key_frame { AV_PKT_FLAG_KEY } else { 0 };
+            pkt.duration = av_rescale_q(duration, in_time_base, out_time_base);
+            pkt.pos = -1;
+            self.ctx.write_frame_interleaved(&mut pkt)?;
+            self.ctx.flush();
+            Ok(())
+        }
+    }
+
+    /// Write the trailer to finish the muxing.
+    fn write_trailer(&mut self) -> AVResult<()> {
+        if self.header_writed && !self.trailer_writed {
+            self.ctx.write_trailer()?;
+            self.trailer_writed = true;
+            self.flush();
+        }
+        Ok(())
+    }
+
+    /// Close all resouces accessed by the muxer.
+    fn close(&mut self) {
+        self.write_trailer().unwrap();
+        self.ctx.flush();
+    }
+
+    /// Flush all buffered data to stream destionation.
+    fn flush(&mut self) {
+        self.ctx.flush();
+    }
+
+    /// Returns the size of the stream processed.
+    fn size(&self) -> u64 {
+        self.ctx.size()
+    }
+}
+
 impl SimpleWriter {
     /// Create a new simple writer.
     /// # Arguments
@@ -176,15 +307,78 @@ impl SimpleWriter {
             trailer_writed: false,
         })
     }
+}
 
-    /// Write frame bytes to the stream.
-    /// # Arguments
-    /// * `bytes` - Stream byte data.
-    /// * `pts` - Timestamp of the frame.
-    /// * `duration` - Duration of the frame.
-    /// * `is_key_frame` - True if is key frame.
-    /// * `stream_index` - Index of the stream.
-    pub fn write_bytes(
+/// The Callback for returns the the fragment file name.
+pub type FormatLocationCallback = dyn Fn(usize) -> String;
+
+/// Options for SplitWriter.
+#[derive(Default)]
+pub struct SplitOptions {
+    output_path: Option<PathBuf>,
+    format_location: Option<Box<FormatLocationCallback>>,
+    max_files: Option<usize>,
+    max_size_bytes: Option<u64>,
+    max_size_time: Option<u64>,
+    start_index: Option<usize>,
+}
+
+impl Debug for SplitOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SplitOptions")
+            .field("output_path", &self.output_path)
+            .finish()
+        // write!(f, "Writer @ 0x{:p}", self)
+    }
+}
+
+/// Split Writer for Muxing Audio and Video.
+pub struct SplitWriter {
+    /// Media descriptions.
+    medias: Vec<Box<dyn MediaDesc>>,
+    /// The format to muxing.
+    format: Option<String>,
+    /// The options of muxing format.
+    format_options: Option<String>,
+    /// The underly writer.
+    writer: Option<Box<dyn Writer>>,
+    /// The location of the files to write.
+    output_path: PathBuf,
+    /// Callback for returns the location to be used for the next output file.
+    format_location: Option<Box<FormatLocationCallback>>,
+    /// Maximum number of files to keep on disk. Once the maximum is reached,
+    /// old files start to be deleted to make room for new ones.
+    max_files: usize,
+    /// Max amount of data per file (in bytes, 0=disable).
+    max_size_bytes: u64,
+    /// Max amount of time per file (in ns, 0=disable).
+    max_size_time: u64,
+    /// Start value of fragment index.
+    start_index: usize,
+    /// Current value of fragment index.
+    current_index: usize,
+    /// Start time of the current fragment.
+    start_time: Instant,
+    /// The data flow started,
+    started: bool,
+}
+
+impl Debug for SplitWriter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SplitWriter @ 0x{:p}", self)
+    }
+}
+
+impl Writer for SplitWriter {
+    fn write_header(&mut self) -> AVResult<()> {
+        if let Some(writer) = &mut self.writer {
+            writer.write_header()
+        } else {
+            Err("The underly writer does not ready".into())
+        }
+    }
+
+    fn write_bytes(
         &mut self,
         bytes: &[u8],
         pts: i64,
@@ -192,99 +386,269 @@ impl SimpleWriter {
         is_key_frame: bool,
         stream_index: usize,
     ) -> AVResult<()> {
-        if !self.header_writed {
-            self.ctx.write_header(Some(&self.format_options))?;
-            self.header_writed = true;
+        let mut split_now = false;
+        if let Some(ref writer) = self.writer {
+            if self.max_size_bytes > 0 && writer.size() >= self.max_size_bytes {
+                split_now = true;
+            }
+            if self.max_size_time > 0
+                && self.start_time.elapsed() >= Duration::from_nanos(self.max_size_time)
+            {
+                split_now = true;
+            }
         }
-        unsafe {
-            let stm = self.streams.get(stream_index).unwrap();
-            let in_time_base = stm.in_time_base;
-            let out_time_base = stm.stream.time_base;
-            let mut pkt = AVPacket::default();
-            let pts = av_rescale_q_rnd(
-                pts,
-                in_time_base,
-                out_time_base,
-                AVRounding::new().near_inf().pass_min_max(),
-            );
-            pkt.pts = pts;
-            pkt.dts = pts;
-            pkt.data = bytes.as_ptr() as *mut u8;
-            pkt.size = bytes.len().try_into()?;
-            pkt.stream_index = stream_index.try_into()?;
-            pkt.flags = if is_key_frame { AV_PKT_FLAG_KEY } else { 0 };
-            pkt.duration = av_rescale_q(duration, in_time_base, out_time_base);
-            pkt.pos = -1;
-            self.ctx.write_frame_interleaved(&mut pkt)?;
-            self.ctx.flush();
-            Ok(())
+        if split_now {
+            self.split_now();
+        }
+        if self.writer.is_none() {
+            let writer = SimpleWriter::new(
+                self.format_location(self.current_index).to_str().unwrap(),
+                &self
+                    .medias
+                    .iter()
+                    .map(Deref::deref)
+                    .collect::<Vec<&dyn MediaDesc>>(),
+                self.format.as_deref(),
+                self.format_options.as_deref(),
+            )?;
+            self.writer = Some(Box::new(writer));
+            self.started = true;
+        }
+
+        if let Some(ref mut writer) = self.writer {
+            writer.write_bytes(bytes, pts, duration, is_key_frame, stream_index)?;
+        }
+
+        Ok(())
+    }
+
+    fn write_trailer(&mut self) -> AVResult<()> {
+        if let Some(writer) = &mut self.writer {
+            writer.write_trailer()
+        } else {
+            Err("The underly writer does not ready".into())
         }
     }
 
-    /// Write the trailer to finish the muxing.
-    pub fn write_trailer(&mut self) {
-        if self.header_writed && !self.trailer_writed {
-            self.ctx.write_trailer().unwrap();
-            self.trailer_writed = true;
-            self.flush();
+    fn close(&mut self) {
+        if let Some(writer) = &mut self.writer {
+            writer.close();
         }
     }
 
-    /// Close all resouces accessed by the muxer.
-    pub fn close(&mut self) {
-        self.write_trailer();
-        self.ctx.flush();
+    fn flush(&mut self) {
+        if let Some(writer) = &mut self.writer {
+            writer.flush();
+        }
     }
 
-    /// Flush all buffered data to stream destionation.
-    pub fn flush(&mut self) {
-        self.ctx.flush();
+    fn size(&self) -> u64 {
+        if let Some(writer) = &self.writer {
+            writer.size()
+        } else {
+            0
+        }
+    }
+}
+
+impl SplitWriter {
+    /// Create a new writer with multipart files.
+    /// # Arguments
+    /// * `descs` - Media description of input streams.
+    /// * `format` - The format to muxing，like: mp4, mpegts.
+    /// * `format_options` - The options for muxing format，like: movfragement.
+    /// * `split_options` - The options for multipart files.
+    /// # Panics
+    /// The `output_path` must be set.
+    pub fn new(
+        descs: Vec<Box<dyn MediaDesc>>,
+        format: Option<&str>,
+        format_options: Option<&str>,
+        split_options: SplitOptions,
+    ) -> AVResult<Self> {
+        Ok(Self {
+            medias: descs,
+            format: format.map(String::from),
+            format_options: format_options.map(String::from),
+            writer: None,
+            output_path: split_options.output_path.unwrap(),
+            format_location: split_options.format_location,
+            max_files: split_options.max_files.unwrap_or(0),
+            max_size_bytes: split_options.max_size_bytes.unwrap_or(0),
+            max_size_time: split_options.max_size_time.unwrap_or(0),
+            start_index: split_options.start_index.unwrap_or(1),
+            current_index: split_options.start_index.unwrap_or(1),
+            start_time: Instant::now(),
+            started: false,
+        })
     }
 
-    /// Returns the size of the stream processed.
-    pub fn size(&self) -> u64 {
-        self.ctx.size()
+    /// Clean older files.
+    pub fn clean_files(&self) {
+        if self.max_files > 0 && (self.current_index - self.start_index) >= self.max_files - 1 {
+            let index = self.current_index - (self.max_files - 1);
+            if index >= self.start_index {
+                let old_file = self.format_location(index);
+                std::fs::remove_file(old_file).unwrap();
+            }
+        }
+    }
+
+    /// Returns the extension of the format.
+    pub fn ext_of_format(format: Option<&str>) -> &'static str {
+        format
+            .map(|s| match s {
+                "mp4" => ".mp4",
+                "mpegts" => ".ts",
+                _ => "dat",
+            })
+            .unwrap_or("dat")
+    }
+
+    /// Returns the fragment file location.
+    pub fn format_location(&self, index: usize) -> PathBuf {
+        let loc = if let Some(ref cb) = self.format_location {
+            cb(index)
+        } else {
+            format!(
+                "MED{:06}{}",
+                index,
+                Self::ext_of_format(self.format.as_deref())
+            )
+        };
+        let path = self.output_path.join(loc);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        path
+    }
+
+    /// Close the output file and create a new one.
+    pub fn split_now(&mut self) {
+        let _ = self.writer.take();
+        self.clean_files();
+        self.current_index += 1;
     }
 }
 
 /// Options Builder for the SimpleWriter.
-#[derive(Debug, Default)]
-pub struct OpenOptions<'a, 'b, 'c> {
-    medias: Vec<&'a dyn MediaDesc>,
-    format: Option<&'b str>,
-    format_options: Option<&'c str>,
+#[derive(Default)]
+pub struct OpenOptions {
+    medias: Vec<Box<dyn MediaDesc>>,
+    format: Option<String>,
+    format_options: Option<String>,
+    format_location: Option<Box<FormatLocationCallback>>,
+    max_files: Option<usize>,
+    max_size_bytes: Option<u64>,
+    max_size_time: Option<u64>,
+    start_index: Option<usize>,
 }
 
-impl<'a, 'b, 'c> OpenOptions<'a, 'b, 'c> {
+impl Debug for OpenOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "OpenOptions @ 0x{:p}", self)
+    }
+}
+
+impl OpenOptions {
     /// Create an new Options Builder for the SimpleWriter.
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Add a media description to the output format.
-    pub fn media(&mut self, media: &'a dyn MediaDesc) -> &mut Self {
-        self.medias.push(media);
+    pub fn media<T>(mut self, media: T) -> Self
+    where
+        T: MediaDesc + Sized + 'static,
+    {
+        self.medias.push(Box::new(media));
         self
     }
 
     /// Specified the muxing format of the output format.
-    pub fn format(&mut self, format: &'b str) -> &mut Self {
-        self.format = Some(format);
+    pub fn format<S>(mut self, format: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.format = Some(format.into());
         self
     }
 
     /// Specified the muxing format options of the output format.
-    pub fn format_options(&mut self, format_options: &'c str) -> &mut Self {
-        self.format_options = Some(format_options);
+    pub fn format_options<S>(mut self, format_options: S) -> Self
+    where
+        S: Into<String>,
+    {
+        self.format_options = Some(format_options.into());
+        self
+    }
+
+    /// Callback for returns the location to be used for the next output file.
+    pub fn format_location<F>(mut self, format_location: F) -> Self
+    where
+        F: Fn(usize) -> String + 'static,
+    {
+        self.format_location = Some(Box::new(format_location));
+        self
+    }
+
+    /// Maximum number of files to keep on disk.
+    pub fn max_files(mut self, max_files: usize) -> Self {
+        self.max_files = Some(max_files);
+        self
+    }
+
+    /// Max amount of data per file (in bytes, 0=disable).
+    pub fn max_size_bytes(mut self, max_size_bytes: u64) -> Self {
+        self.max_size_bytes = Some(max_size_bytes);
+        self
+    }
+
+    /// Max amount of time per file (in ns, 0=disable).
+    pub fn max_size_time(mut self, max_size_time: u64) -> Self {
+        self.max_size_time = Some(max_size_time);
+        self
+    }
+
+    /// Start value of fragment index (must be > 0).
+    pub fn start_index(mut self, start_index: usize) -> Self {
+        if start_index > 0 {
+            self.start_index = Some(start_index);
+        }
         self
     }
 
     /// Open the output file and returns the SimpleWriter.
-    pub fn open<P>(&self, path: P) -> AVResult<SimpleWriter>
+    pub fn open<P>(self, path: P) -> AVResult<Box<dyn Writer>>
     where
         P: AsRef<Path> + Sized,
     {
-        SimpleWriter::new(path, &self.medias, self.format, self.format_options)
+        if self.format_location.is_some() || self.max_files.is_some() {
+            let split_options = SplitOptions {
+                output_path: Some(AsRef::<Path>::as_ref(&path).to_path_buf()),
+                format_location: self.format_location,
+                max_files: self.max_files,
+                max_size_bytes: self.max_size_bytes,
+                max_size_time: self.max_size_time,
+                start_index: self.start_index,
+            };
+            let writer = SplitWriter::new(
+                self.medias,
+                self.format.as_deref(),
+                self.format_options.as_deref(),
+                split_options,
+            )?;
+            Ok(Box::new(writer))
+        } else {
+            let medias: Vec<&dyn MediaDesc> = self.medias.iter().map(Deref::deref).collect();
+            let writer = SimpleWriter::new(
+                path,
+                &medias[..],
+                self.format.as_deref(),
+                self.format_options.as_deref(),
+            )?;
+            Ok(Box::new(writer))
+        }
     }
 }
 
