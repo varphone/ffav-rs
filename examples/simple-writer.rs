@@ -1,9 +1,7 @@
 use ffav::easy::{AudioDesc, OpenOptions, VideoDesc};
 use std::convert::TryInto;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,14 +23,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let start = Instant::now();
         let mut mp4_writer = OpenOptions::new()
-            .media(&a_desc)
-            .media(&v_desc)
+            .media(a_desc)
+            .media(v_desc)
             .format_options("movflags=frag_keyframe")
             .open("/tmp/envivio-352x288.264.mp4")?;
 
         let mut ts_writer = OpenOptions::new()
-            .media(&a_desc)
-            .media(&v_desc)
+            .media(a_desc)
+            .media(v_desc)
             .format("mpegts")
             .format_options("mpegts_copyts=1")
             .open("/tmp/envivio-352x288.264.ts")?;
