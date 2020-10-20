@@ -329,6 +329,8 @@ pub struct SplitOptions {
     max_files: Option<usize>,
     max_size_bytes: Option<u64>,
     max_size_time: Option<u64>,
+    max_overhead: Option<f32>,
+    split_at_keyframe: Option<bool>,
     start_index: Option<usize>,
 }
 
@@ -339,6 +341,8 @@ impl Debug for SplitOptions {
             .field("max_files", &self.max_files)
             .field("max_size_bytes", &self.max_size_bytes)
             .field("max_size_time", &self.max_size_time)
+            .field("max_overhead", &self.max_overhead)
+            .field("split_at_keyframe", &self.split_at_keyframe)
             .field("start_index", &self.start_index)
             .finish()
     }
@@ -369,6 +373,10 @@ pub struct SplitWriter {
     max_size_bytes: u64,
     /// Max amount of time per file (in ns, 0=disable).
     max_size_time: u64,
+    /// Extra size/time overhead of muxing.
+    max_overhead: f32,
+    /// Split at key frame input.
+    split_at_keyframe: bool,
     /// Start value of fragment index.
     start_index: usize,
     /// Current value of fragment index.
@@ -377,6 +385,9 @@ pub struct SplitWriter {
     start_time: Instant,
     /// The data flow started,
     started: bool,
+    ///
+    need_key_frame: bool,
+    split_wait_for_key_frame: bool,
 }
 
 impl Debug for SplitWriter {
@@ -402,20 +413,10 @@ impl Writer for SplitWriter {
         is_key_frame: bool,
         stream_index: usize,
     ) -> AVResult<()> {
-        let mut split_now = false;
-        if let Some(ref writer) = self.writer {
-            if self.max_size_bytes > 0 && writer.size() >= self.max_size_bytes {
-                split_now = true;
-            }
-            if self.max_size_time > 0
-                && self.start_time.elapsed() >= Duration::from_nanos(self.max_size_time)
-            {
-                split_now = true;
-            }
-        }
-        if split_now {
+        if self.can_split_now(is_key_frame, stream_index) {
             self.split_now();
         }
+
         if self.writer.is_none() {
             let writer = SimpleWriter::new(
                 self.format_location(self.current_index).to_str().unwrap(),
@@ -482,6 +483,12 @@ impl SplitWriter {
         format_options: Option<&str>,
         split_options: SplitOptions,
     ) -> AVResult<Self> {
+        let mut need_key_frame = false;
+        for d in descs.iter() {
+            if d.codec_id().has_gop() {
+                need_key_frame = true;
+            }
+        }
         Ok(Self {
             medias: descs,
             format: format.map(String::from),
@@ -494,11 +501,69 @@ impl SplitWriter {
             max_files: split_options.max_files.unwrap_or(0),
             max_size_bytes: split_options.max_size_bytes.unwrap_or(0),
             max_size_time: split_options.max_size_time.unwrap_or(0),
+            max_overhead: split_options.max_overhead.unwrap_or(0.1f32),
+            split_at_keyframe: split_options.split_at_keyframe.unwrap_or(true),
             start_index: split_options.start_index.unwrap_or(0),
             current_index: split_options.start_index.unwrap_or(0),
             start_time: Instant::now(),
             started: false,
+            need_key_frame,
+            split_wait_for_key_frame: false,
         })
+    }
+
+    /// Returns `true` if `writer.size() >= max_size_bytes`.
+    pub(crate) fn is_bytes_overrun(&mut self) -> bool {
+        let mut exceeded = false;
+        if let Some(ref writer) = self.writer {
+            if self.max_size_bytes > 0 && writer.size() >= self.max_size_bytes {
+                exceeded = true
+            }
+        }
+        exceeded
+    }
+
+    /// Returns `true` if `writer.size() >= max_size_bytes * (1.0 + max_overhead)`.
+    pub(crate) fn is_bytes_overflow(&mut self) -> bool {
+        let mut exceeded = false;
+        if let Some(ref writer) = self.writer {
+            let overhead_bytes = self.max_size_bytes * (self.max_overhead * 100.0) as u64 / 100;
+            if self.max_size_bytes > 0 && writer.size() >= self.max_size_bytes + overhead_bytes {
+                exceeded = true
+            }
+        }
+        exceeded
+    }
+
+    /// Returns `true` if `time >= max_size_time`.
+    pub(crate) fn is_time_overrun(&mut self) -> bool {
+        self.max_size_time > 0
+            && self.start_time.elapsed() >= Duration::from_nanos(self.max_size_time)
+    }
+
+    /// Returns `true` if `time >= max_size_time * (1.0 + max_overhead)`.
+    pub(crate) fn is_time_overflow(&mut self) -> bool {
+        let overhead_time = self.max_size_time * (self.max_overhead * 100.0) as u64 / 100;
+        self.max_size_time > 0
+            && self.start_time.elapsed() >= Duration::from_nanos(self.max_size_time + overhead_time)
+    }
+
+    /// Return `true` if can split fragment now.
+    pub fn can_split_now(&mut self, is_key_frame: bool, stream_index: usize) -> bool {
+        let mut split_now: bool = false;
+        if self.split_wait_for_key_frame {
+            split_now = self.stream_has_key_frame(stream_index) && is_key_frame;
+            self.split_wait_for_key_frame = false;
+        } else {
+            let overrun = self.is_bytes_overrun() || self.is_time_overrun();
+            if overrun && self.split_at_keyframe && self.need_key_frame {
+                self.split_wait_for_key_frame = true;
+            } else {
+                split_now = overrun;
+            }
+        }
+        let overflow = self.is_bytes_overflow() || self.is_time_overflow();
+        split_now || overflow
     }
 
     /// Clean older files.
@@ -553,6 +618,11 @@ impl SplitWriter {
             cb(self.current_index);
         }
     }
+
+    /// Return `true` if the stream has `key_frame` props.
+    pub fn stream_has_key_frame(&self, stream_index: usize) -> bool {
+        self.medias[stream_index].codec_id().has_gop()
+    }
 }
 
 /// Options Builder for the SimpleWriter.
@@ -567,6 +637,8 @@ pub struct OpenOptions {
     max_files: Option<usize>,
     max_size_bytes: Option<u64>,
     max_size_time: Option<u64>,
+    max_overhead: Option<f32>,
+    split_at_keyframe: Option<bool>,
     start_index: Option<usize>,
 }
 
@@ -654,6 +726,20 @@ impl OpenOptions {
         self
     }
 
+    /// Extra size/time overhead of muxing (0.02 = 2%).
+    pub fn max_overhead(mut self, max_overhead: f32) -> Self {
+        self.max_overhead = Some(max_overhead);
+        self
+    }
+
+    /// Split immediately if `split_at_keyframe = false`.
+    /// The option ignored when `size > max_size_bytes + max_size_bytes * max_overhead`
+    /// or `time > max_size_time + max_size_time * max_overhead`.
+    pub fn split_at_keyframe(mut self, split_at_keyframe: bool) -> Self {
+        self.split_at_keyframe = Some(split_at_keyframe);
+        self
+    }
+
     /// Start value of fragment index.
     pub fn start_index(mut self, start_index: usize) -> Self {
         self.start_index = Some(start_index);
@@ -674,6 +760,8 @@ impl OpenOptions {
                 max_files: self.max_files,
                 max_size_bytes: self.max_size_bytes,
                 max_size_time: self.max_size_time,
+                max_overhead: self.max_overhead,
+                split_at_keyframe: self.split_at_keyframe,
                 start_index: self.start_index,
             };
             let writer = SplitWriter::new(
