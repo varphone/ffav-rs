@@ -476,8 +476,8 @@ impl SplitWriter {
             max_files: split_options.max_files.unwrap_or(0),
             max_size_bytes: split_options.max_size_bytes.unwrap_or(0),
             max_size_time: split_options.max_size_time.unwrap_or(0),
-            start_index: split_options.start_index.unwrap_or(1),
-            current_index: split_options.start_index.unwrap_or(1),
+            start_index: split_options.start_index.unwrap_or(0),
+            current_index: split_options.start_index.unwrap_or(0),
             start_time: Instant::now(),
             started: false,
         })
@@ -610,11 +610,9 @@ impl OpenOptions {
         self
     }
 
-    /// Start value of fragment index (must be > 0).
+    /// Start value of fragment index.
     pub fn start_index(mut self, start_index: usize) -> Self {
-        if start_index > 0 {
-            self.start_index = Some(start_index);
-        }
+        self.start_index = Some(start_index);
         self
     }
 
