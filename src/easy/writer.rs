@@ -310,13 +310,22 @@ impl SimpleWriter {
 }
 
 /// The Callback for returns the the fragment file name.
+/// # Arguments
+/// * `index` - Current Fragment Index.
 pub type FormatLocationCallback = dyn Fn(usize) -> String;
+
+/// The Callback for before and after split fragment.
+/// # Arguments
+/// * `index` - Current Fragment Index.
+pub type SplitNotifier = dyn Fn(usize);
 
 /// Options for SplitWriter.
 #[derive(Default)]
 pub struct SplitOptions {
     output_path: Option<PathBuf>,
     format_location: Option<Box<FormatLocationCallback>>,
+    before_split: Option<Box<SplitNotifier>>,
+    after_split: Option<Box<SplitNotifier>>,
     max_files: Option<usize>,
     max_size_bytes: Option<u64>,
     max_size_time: Option<u64>,
@@ -327,8 +336,11 @@ impl Debug for SplitOptions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SplitOptions")
             .field("output_path", &self.output_path)
+            .field("max_files", &self.max_files)
+            .field("max_size_bytes", &self.max_size_bytes)
+            .field("max_size_time", &self.max_size_time)
+            .field("start_index", &self.start_index)
             .finish()
-        // write!(f, "Writer @ 0x{:p}", self)
     }
 }
 
@@ -346,6 +358,10 @@ pub struct SplitWriter {
     output_path: PathBuf,
     /// Callback for returns the location to be used for the next output file.
     format_location: Option<Box<FormatLocationCallback>>,
+    /// Callback on before split fragment.
+    before_split: Option<Box<SplitNotifier>>,
+    /// Callback on after split fragment.
+    after_split: Option<Box<SplitNotifier>>,
     /// Maximum number of files to keep on disk. Once the maximum is reached,
     /// old files start to be deleted to make room for new ones.
     max_files: usize,
@@ -473,6 +489,8 @@ impl SplitWriter {
             writer: None,
             output_path: split_options.output_path.unwrap(),
             format_location: split_options.format_location,
+            before_split: split_options.before_split,
+            after_split: split_options.after_split,
             max_files: split_options.max_files.unwrap_or(0),
             max_size_bytes: split_options.max_size_bytes.unwrap_or(0),
             max_size_time: split_options.max_size_time.unwrap_or(0),
@@ -525,9 +543,15 @@ impl SplitWriter {
 
     /// Close the output file and create a new one.
     pub fn split_now(&mut self) {
+        if let Some(ref cb) = self.before_split {
+            cb(self.current_index);
+        }
         let _ = self.writer.take();
         self.clean_files();
         self.current_index += 1;
+        if let Some(ref cb) = self.after_split {
+            cb(self.current_index);
+        }
     }
 }
 
@@ -538,6 +562,8 @@ pub struct OpenOptions {
     format: Option<String>,
     format_options: Option<String>,
     format_location: Option<Box<FormatLocationCallback>>,
+    before_split: Option<Box<SplitNotifier>>,
+    after_split: Option<Box<SplitNotifier>>,
     max_files: Option<usize>,
     max_size_bytes: Option<u64>,
     max_size_time: Option<u64>,
@@ -592,6 +618,24 @@ impl OpenOptions {
         self
     }
 
+    /// Callback before split fragment.
+    pub fn before_split<F>(mut self, before_split: F) -> Self
+    where
+        F: Fn(usize) + 'static,
+    {
+        self.before_split = Some(Box::new(before_split));
+        self
+    }
+
+    /// Callback after split fragment.
+    pub fn after_split<F>(mut self, after_split: F) -> Self
+    where
+        F: Fn(usize) + 'static,
+    {
+        self.after_split = Some(Box::new(after_split));
+        self
+    }
+
     /// Maximum number of files to keep on disk.
     pub fn max_files(mut self, max_files: usize) -> Self {
         self.max_files = Some(max_files);
@@ -625,6 +669,8 @@ impl OpenOptions {
             let split_options = SplitOptions {
                 output_path: Some(AsRef::<Path>::as_ref(&path).to_path_buf()),
                 format_location: self.format_location,
+                before_split: self.before_split,
+                after_split: self.after_split,
                 max_files: self.max_files,
                 max_size_bytes: self.max_size_bytes,
                 max_size_time: self.max_size_time,
