@@ -18,4 +18,4 @@ Support for different FFmpeg versions are guarded by feature flags:
 
 A word on versioning: major and minor versions of this crate track major and minor versions of FFmpeg, e.g. 4.2.x of this crate has been updated to support the 4.2.x series of FFmpeg. Patch level is reserved for bug fixes of this crate and does not track FFmpeg patch versions.
 
-If you have problem building this crate, please have a look at the [wiki](https://github.com/varphone/ffav-rs/wiki/Notes-on-building).
+If you have problem building this crate, please have a look at the [wiki](https://github.com/vaxpl/ffav-rs/wiki/Notes-on-building).

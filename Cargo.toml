@@ -13,8 +13,8 @@ license = "WTFPL"
 
 description   = "Safe FFmpeg wrapper (FFmpeg 4 compatible fork of the ffmpeg-next crate)"
 documentation = "https://docs.rs/ffav"
-homepage      = "https://github.com/varphone/ffav-rs#readme"
-repository    = "https://github.com/varphone/ffav-rs"
+homepage      = "https://github.com/vaxpl/ffav-rs#readme"
+repository    = "https://github.com/vaxpl/ffav-rs"
 readme        = "README.md"
 keywords      = ["ffmpeg", "multimedia", "video", "audio", "embbeded"]
 categories    = ["multimedia"]
