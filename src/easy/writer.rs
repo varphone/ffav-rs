@@ -429,6 +429,7 @@ impl Writer for SplitWriter {
                 self.format_options.as_deref(),
             )?;
             self.writer = Some(Box::new(writer));
+            self.start_time = Instant::now();
             self.started = true;
         }
 
