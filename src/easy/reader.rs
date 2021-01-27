@@ -92,6 +92,28 @@ impl SimpleReader {
         })
     }
 
+    /// Returns the duration of the stream.
+    pub fn duration(&self) -> i64 {
+        self.ctx.duration
+    }
+
+    /// Returns a list to describe the frame for each stream.
+    pub fn frame_infos(&self) -> Vec<FrameInfo> {
+        self.streams()
+            .iter()
+            .map(|stream| {
+                if let Some(codecpar) = stream.codecpar() {
+                    FrameInfo {
+                        codec_id: codecpar.codec_id,
+                        codec_type: codecpar.codec_type,
+                    }
+                } else {
+                    FrameInfo::default()
+                }
+            })
+            .collect()
+    }
+
     // Returns an iterator over the frames.
     pub fn frames(&mut self) -> FrameIter<'_> {
         FrameIter::new(self)
