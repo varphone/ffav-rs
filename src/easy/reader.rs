@@ -92,6 +92,11 @@ impl SimpleReader {
         })
     }
 
+    /// Returns the total stream bitrate in bit/s, 0 if not available.
+    pub fn bit_rate(&self) -> i64 {
+        self.ctx.bit_rate
+    }
+
     /// Returns the duration of the stream.
     pub fn duration(&self) -> i64 {
         self.ctx.duration
