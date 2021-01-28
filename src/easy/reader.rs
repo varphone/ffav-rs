@@ -181,6 +181,11 @@ impl SimpleReader {
         None
     }
 
+    /// Returns the position of the first frame of the component.
+    pub fn start_time(&self) -> i64 {
+        self.ctx.start_time
+    }
+
     /// Returns then stream at index of the file.
     pub fn stream(&self, index: usize) -> Option<&AVStream> {
         self.streams().get(index).copied()
