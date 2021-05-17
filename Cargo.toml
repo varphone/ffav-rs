@@ -28,7 +28,7 @@ version  = "0.12"
 optional = true
 
 [dependencies.ffav-sys]
-version = "4.3"
+version = "4.3.4"
 default-features = false
 
 [features]
